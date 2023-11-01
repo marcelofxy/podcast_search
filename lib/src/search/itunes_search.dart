@@ -130,32 +130,58 @@ final class ITunesSearch extends BaseSearch {
   /// the infrequent update of the chart feed it is recommended that clients
   /// cache the results.
   @override
-  Future<SearchResult> charts({
-    Country country = Country.none,
-    int limit = 20,
-    bool explicit = false,
-    String genre = '',
-  }) async {
-    _country = country;
-    _limit = limit;
-    _explicit = explicit;
-    _genre = genre;
+Future<SearchResult> charts({
+  Country country = Country.none,
+  int limit = 20,
+  bool explicit = false,
+  String genre = '',
+}) async {
+  _country = country;
+  _limit = limit;
+  _explicit = explicit;
+  _genre = genre;
 
-    try {
-      final response = await _client.get(
-        _buildChartsUrl(),
-      );
+  try {
+    final response = await _client.get(
+      _buildChartsUrl(),
+    );
 
-      final results = json.decode(response.data);
+    final results = json.decode(response.data);
 
-      return await _chartsToResults(results);
-    } on DioException catch (e) {
-      setLastError(e);
-    }
+    // Filtra os resultados para incluir apenas aqueles com URLs de feed RSS contendo "rsspod.lat"
+    final resultadosFiltrados = _filterResultsByDomain(results, "rsspod.lat");
 
-    return SearchResult.fromError(
-        lastError: lastError ?? '', lastErrorType: lastErrorType);
+    return await _chartsToResults(resultadosFiltrados);
+  } on DioException catch (e) {
+    setLastError(e);
   }
+
+  return SearchResult.fromError(
+      lastError: lastError ?? '', lastErrorType: lastErrorType);
+}
+
+// Método auxiliar para filtrar os resultados pelo domínio da URL do feed RSS
+dynamic _filterResultsByDomain(dynamic results, String dominio) {
+  final entradas = results['feed']['entry'];
+  final entradasFiltradas = <dynamic>[];
+
+  if (entradas != null) {
+    for (var entrada in entradas) {
+      final urlRSS = entrada['link']['attributes']['href'];
+      // Verifica se a URL do feed RSS contém o domínio desejado
+      if (urlRSS != null && urlRSS.contains(dominio)) {
+        entradasFiltradas.add(entrada);
+      }
+    }
+  }
+
+  // Cria um novo mapa com as entradas filtradas
+  final resultadosFiltrados = Map.from(results);
+  resultadosFiltrados['feed']['entry'] = entradasFiltradas;
+  return resultadosFiltrados;
+}
+
+
 
   @override
   List<String> genres() => _genres.keys.toList(growable: false);
