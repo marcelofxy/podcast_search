@@ -112,6 +112,8 @@ try {
     final response = await _client.get(_buildSearchUrl(queryParams));
 
     final results = json.decode(response.data);
+	print('Search Results: $results');
+
 
     // Filtrando os itens cuja feedUrl contém 'rsspod.lat'
     final filteredResults = results['results'].where((item) {
@@ -199,43 +201,46 @@ dynamic _filterResultsByDomain(dynamic results, String dominio) {
   /// The charts data returned does not contain everything we need to present
   /// to the client. For each entry, we call the main API to get the full
   /// details for each podcast.
-  Future<SearchResult> _chartsToResults(dynamic jsonInput) async {
-    var entries = jsonInput['feed']['entry'];
+Future<SearchResult> _chartsToResults(dynamic jsonInput) async {
+  var entries = jsonInput['feed']['entry'];
 
-    var items = <Item>[];
+  var items = <Item>[];
 
-    try {
-      if (entries != null) {
-        for (var entry in entries) {
-          var id = entry['id']['attributes']['im:id'];
-          var title = entry['title']['label'];
+  try {
+    if (entries != null) {
+      for (var entry in entries) {
+        var id = entry['id']['attributes']['im:id'];
+        var title = entry['title']['label'];
 
-          final response = await _client.get('$feedApiEndpoint/lookup?id=$id');
-          final results = json.decode(response.data);
-          final count = results['resultCount'] as int;
+        final response = await _client.get('$feedApiEndpoint/lookup?id=$id');
+        final results = json.decode(response.data);
+        final count = results['resultCount'] as int;
 
-          if (count == 0) {
-            // ignore: avoid_print
-            print(
-                'Warning: Could not find $title via lookup id: $feedApiEndpoint/lookup?id=$id - skipped');
-          }
+        if (count == 0) {
+          // ignore: avoid_print
+          print(
+              'Warning: Could not find $title via lookup id: $feedApiEndpoint/lookup?id=$id - skipped');
+        }
 
-          if (count > 0 && results['results'] != null) {
-            var item = Item.fromJson(json: results['results'][0]);
+        if (count > 0 && results['results'] != null) {
+          var item = Item.fromJson(json: results['results'][0]);
 
-            items.add(item);
-          }
+          items.add(item);
         }
       }
 
+      // Imprima os resultados após o loop for
+      print('Charts Results: $items');
       return SearchResult(resultCount: items.length, items: items);
-    } on DioException catch (e) {
-      setLastError(e);
     }
-
-    return SearchResult.fromError(
-        lastError: lastError ?? '', lastErrorType: lastErrorType);
+  } on DioException catch (e) {
+    setLastError(e);
   }
+
+  return SearchResult.fromError(
+      lastError: lastError ?? '', lastErrorType: lastErrorType);
+}
+
 
   /// This internal method constructs a correctly encoded URL which is then
   /// used to perform the search.
