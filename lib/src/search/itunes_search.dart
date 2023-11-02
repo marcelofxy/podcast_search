@@ -107,16 +107,26 @@ final class ITunesSearch extends BaseSearch {
     _explicit = explicit;
 
     try {
-      final response = await _client.get(_buildSearchUrl(queryParams));
+      
+try {
+    final response = await _client.get(_buildSearchUrl(queryParams));
 
-      final results = json.decode(response.data);
+    final results = json.decode(response.data);
 
-      return SearchResult.fromJson(json: results);
-    } on DioException catch (e) {
-      setLastError(e);
-    }
+    // Filtrando os itens cuja feedUrl contém 'rsspod.lat'
+    final filteredResults = results['results'].where((item) {
+        return item['feedUrl'] != null && item['feedUrl'].contains('rsspod.lat');
+    }).toList();
 
-    return SearchResult.fromError(
+    return SearchResult.fromJson(json: {'results': filteredResults});
+} on DioException catch (e) {
+    setLastError(e);
+}
+
+return SearchResult.fromError(
+    lastError: lastError ?? 'Unknown error occurred'
+);
+return SearchResult.fromError(
         lastError: lastError ?? '', lastErrorType: lastErrorType);
   }
 
