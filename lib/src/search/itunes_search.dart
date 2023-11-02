@@ -107,28 +107,16 @@ final class ITunesSearch extends BaseSearch {
     _explicit = explicit;
 
     try {
-      
-try {
-    final response = await _client.get(_buildSearchUrl(queryParams));
+      final response = await _client.get(_buildSearchUrl(queryParams));
 
-    final results = json.decode(response.data);
-	print('Search Results: $results');
+      final results = json.decode(response.data);
 
+      return SearchResult.fromJson(json: results);
+    } on DioException catch (e) {
+      setLastError(e);
+    }
 
-    // Filtrando os itens cuja feedUrl contém 'rsspod.lat'
-    final filteredResults = results['results'].where((item) {
-        return item['feedUrl'] != null && item['feedUrl'].contains('rsspod.lat');
-    }).toList();
-
-    return SearchResult.fromJson(json: {'results': filteredResults});
-} on DioException catch (e) {
-    setLastError(e);
-}
-
-return SearchResult.fromError(
-    lastError: lastError ?? 'Unknown error occurred'
-);
-return SearchResult.fromError(
+    return SearchResult.fromError(
         lastError: lastError ?? '', lastErrorType: lastErrorType);
   }
 
@@ -142,58 +130,32 @@ return SearchResult.fromError(
   /// the infrequent update of the chart feed it is recommended that clients
   /// cache the results.
   @override
-Future<SearchResult> charts({
-  Country country = Country.none,
-  int limit = 20,
-  bool explicit = false,
-  String genre = '',
-}) async {
-  _country = country;
-  _limit = limit;
-  _explicit = explicit;
-  _genre = genre;
+  Future<SearchResult> charts({
+    Country country = Country.none,
+    int limit = 20,
+    bool explicit = false,
+    String genre = '',
+  }) async {
+    _country = country;
+    _limit = limit;
+    _explicit = explicit;
+    _genre = genre;
 
-  try {
-    final response = await _client.get(
-      _buildChartsUrl(),
-    );
+    try {
+      final response = await _client.get(
+        _buildChartsUrl(),
+      );
 
-    final results = json.decode(response.data);
+      final results = json.decode(response.data);
 
-    // Filtra os resultados para incluir apenas aqueles com URLs de feed RSS contendo "rsspod.lat"
-    final resultadosFiltrados = _filterResultsByDomain(results, "rsspod.lat");
-
-    return await _chartsToResults(resultadosFiltrados);
-  } on DioException catch (e) {
-    setLastError(e);
-  }
-
-  return SearchResult.fromError(
-      lastError: lastError ?? '', lastErrorType: lastErrorType);
-}
-
-// Método auxiliar para filtrar os resultados pelo domínio da URL do feed RSS
-dynamic _filterResultsByDomain(dynamic results, String dominio) {
-  final entradas = results['feed']['entry'];
-  final entradasFiltradas = <dynamic>[];
-
-  if (entradas != null) {
-    for (var entrada in entradas) {
-      final urlRSS = entrada['link']['attributes']['href'];
-      // Verifica se a URL do feed RSS contém o domínio desejado
-      if (urlRSS != null && urlRSS.contains(dominio)) {
-        entradasFiltradas.add(entrada);
-      }
+      return await _chartsToResults(results);
+    } on DioException catch (e) {
+      setLastError(e);
     }
+
+    return SearchResult.fromError(
+        lastError: lastError ?? '', lastErrorType: lastErrorType);
   }
-
-  // Cria um novo mapa com as entradas filtradas
-  final resultadosFiltrados = Map.from(results);
-  resultadosFiltrados['feed']['entry'] = entradasFiltradas;
-  return resultadosFiltrados;
-}
-
-
 
   @override
   List<String> genres() => _genres.keys.toList(growable: false);
@@ -201,46 +163,43 @@ dynamic _filterResultsByDomain(dynamic results, String dominio) {
   /// The charts data returned does not contain everything we need to present
   /// to the client. For each entry, we call the main API to get the full
   /// details for each podcast.
-Future<SearchResult> _chartsToResults(dynamic jsonInput) async {
-  var entries = jsonInput['feed']['entry'];
+  Future<SearchResult> _chartsToResults(dynamic jsonInput) async {
+    var entries = jsonInput['feed']['entry'];
 
-  var items = <Item>[];
+    var items = <Item>[];
 
-  try {
-    if (entries != null) {
-      for (var entry in entries) {
-        var id = entry['id']['attributes']['im:id'];
-        var title = entry['title']['label'];
+    try {
+      if (entries != null) {
+        for (var entry in entries) {
+          var id = entry['id']['attributes']['im:id'];
+          var title = entry['title']['label'];
 
-        final response = await _client.get('$feedApiEndpoint/lookup?id=$id');
-        final results = json.decode(response.data);
-        final count = results['resultCount'] as int;
+          final response = await _client.get('$feedApiEndpoint/lookup?id=$id');
+          final results = json.decode(response.data);
+          final count = results['resultCount'] as int;
 
-        if (count == 0) {
-          // ignore: avoid_print
-          print(
-              'Warning: Could not find $title via lookup id: $feedApiEndpoint/lookup?id=$id - skipped');
-        }
+          if (count == 0) {
+            // ignore: avoid_print
+            print(
+                'Warning: Could not find $title via lookup id: $feedApiEndpoint/lookup?id=$id - skipped');
+          }
 
-        if (count > 0 && results['results'] != null) {
-          var item = Item.fromJson(json: results['results'][0]);
+          if (count > 0 && results['results'] != null) {
+            var item = Item.fromJson(json: results['results'][0]);
 
-          items.add(item);
+            items.add(item);
+          }
         }
       }
 
-      // Imprima os resultados após o loop for
-      print('Charts Results: $items');
       return SearchResult(resultCount: items.length, items: items);
+    } on DioException catch (e) {
+      setLastError(e);
     }
-  } on DioException catch (e) {
-    setLastError(e);
+
+    return SearchResult.fromError(
+        lastError: lastError ?? '', lastErrorType: lastErrorType);
   }
-
-  return SearchResult.fromError(
-      lastError: lastError ?? '', lastErrorType: lastErrorType);
-}
-
 
   /// This internal method constructs a correctly encoded URL which is then
   /// used to perform the search.
