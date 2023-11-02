@@ -1,5 +1,3 @@
-// Copyright (c) 2019 Ben Hills and the project contributors. Use of this source
-// code is governed by a MIT license that can be found in the LICENSE file.
 
 import 'package:podcast_search/podcast_search.dart';
 import 'package:podcast_search/src/search/itunes_search.dart';
@@ -79,7 +77,7 @@ class Search {
             podcastIndexProvider: searchProvider as PodcastIndexProvider,
           );
 
-    return s.search(
+    SearchResult searchResult = await s.search(
         term: term,
         country: _country,
         attribute: _attribute,
@@ -88,6 +86,17 @@ class Search {
         version: _version,
         explicit: _explicit,
         queryParams: queryParams);
+
+    // Filtrando os resultados para incluir apenas aqueles com feeds RSS contendo 'rsspod.lat'
+    List<Item> filteredItems = searchResult.items.where((item) {
+      return item.feedUrl.contains('rsspod.lat');
+    }).toList();
+
+    // Retornando um novo SearchResult com os itens filtrados
+    return SearchResult(
+      totalResults: filteredItems.length,
+      items: filteredItems,
+    );
   }
 
   /// Fetches the list of top podcasts
@@ -111,27 +120,37 @@ class Search {
     _explicit = explicit;
     _genre = genre;
 
-    if (searchProvider is PodcastIndexProvider) {
-      return PodcastIndexSearch(
-        userAgent: userAgent,
-        timeout: timeout,
-        podcastIndexProvider: searchProvider as PodcastIndexProvider,
-      ).charts(
-        country: _country,
-        limit: _limit,
-        explicit: _explicit,
-        genre: _genre,
-        queryParams: queryParams,
-      );
-    }
-    return ITunesSearch(
-      userAgent: userAgent,
-      timeout: timeout,
-    ).charts(
-      country: _country,
-      limit: _limit,
-      explicit: _explicit,
-      genre: _genre,
+    SearchResult chartResult = await (searchProvider is PodcastIndexProvider
+      ? PodcastIndexSearch(
+          userAgent: userAgent,
+          timeout: timeout,
+          podcastIndexProvider: searchProvider as PodcastIndexProvider,
+        ).charts(
+          country: _country,
+          limit: _limit,
+          explicit: _explicit,
+          genre: _genre,
+          queryParams: queryParams,
+        )
+      : ITunesSearch(
+          userAgent: userAgent,
+          timeout: timeout,
+        ).charts(
+          country: _country,
+          limit: _limit,
+          explicit: _explicit,
+          genre: _genre,
+        ));
+
+    // Filtrando os resultados para incluir apenas aqueles com feeds RSS contendo 'rsspod.lat'
+    List<Item> filteredItems = chartResult.items.where((item) {
+      return item.feedUrl.contains('rsspod.lat');
+    }).toList();
+
+    // Retornando um novo SearchResult com os itens filtrados
+    return SearchResult(
+      totalResults: filteredItems.length,
+      items: filteredItems,
     );
   }
 
