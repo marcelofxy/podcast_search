@@ -238,56 +238,29 @@ final class PodcastIndexSearch extends BaseSearch {
   /// the infrequent update of the chart feed it is recommended that clients
   /// cache the results.
   @override
-Future<SearchResult> charts({
-  Country country = Country.none,
-  int limit = 20,
-  bool explicit = false,
-  String genre = '',
-  Map<String, dynamic> queryParams = const {},
-}) async {
-  try {
-    var response = await _client.get(trendingApiEndpoint,
-        queryParameters: {
-          'since': -1 * 3600 * 24 * 7,
-          'cat': genre,
-          'max': limit,
-        }..addAll(queryParams));
+  Future<SearchResult> charts(
+      {Country country = Country.none,
+      int limit = 20,
+      bool explicit = false,
+      String genre = '',
+      Map<String, dynamic> queryParams = const {}}) async {
+    try {
+      var response = await _client.get(trendingApiEndpoint,
+          queryParameters: {
+            'since': -1 * 3600 * 24 * 7,
+            'cat': genre,
+            'max': limit,
+          }..addAll(queryParams));
 
-    final originalResult = SearchResult.fromJson(
-        json: response.data, type: ResultType.podcastIndex);
-
-    // Filtrar os resultados para incluir apenas aqueles com URLs de feed RSS contendo "rsspod.lat"
-    final resultadosFiltrados = _filterResultsByDomain(originalResult, "rsspod.lat");
-
-    return resultadosFiltrados;
-  } on DioException catch (e) {
-    setLastError(e);
-  }
-
-  return SearchResult.fromError(
-      lastError: _lastError ?? '', lastErrorType: _lastErrorType);
-}
-
-// Método auxiliar para filtrar resultados pelo domínio da URL do feed RSS
-SearchResult _filterResultsByDomain(SearchResult originalResult, String domain) {
-  final items = originalResult.items;
-  final filteredItems = <Item>[];
-
-  for (var item in items) {
-    final rssUrl = item.feedUrl;
-    // Verificar se a URL do feed RSS contém o domínio desejado
-    if (rssUrl != null && rssUrl.contains(domain)) {
-      filteredItems.add(item);
+      return SearchResult.fromJson(
+          json: response.data, type: ResultType.podcastIndex);
+    } on DioException catch (e) {
+      setLastError(e);
     }
+
+    return SearchResult.fromError(
+        lastError: _lastError ?? '', lastErrorType: _lastErrorType);
   }
-
-  // Criar um novo resultado com os itens filtrados
-  return SearchResult(
-    resultCount: filteredItems.length,
-    items: filteredItems,
-  );
-}
-
 
   @override
   List<String> genres() => _genres;
@@ -322,3 +295,22 @@ SearchResult _filterResultsByDomain(SearchResult originalResult, String domain) 
   /// Returns the search term.
   String? get term => _term;
 }
+try {
+    final response = await _client.get(_buildSearchUrl(queryParams));
+
+    final results = json.decode(response.data);
+
+    // Filtrando os itens cuja feedUrl contém 'rsspod.lat'
+    final filteredResults = results['results'].where((item) {
+        return item['feedUrl'] != null && item['feedUrl'].contains('rsspod.lat');
+    }).toList();
+
+    return SearchResult.fromJson(json: {'results': filteredResults});
+} on DioException catch (e) {
+    setLastError(e);
+}
+
+return SearchResult.fromError(
+    lastError: lastError ?? 'Unknown error occurred'
+);
+
